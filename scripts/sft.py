@@ -13,19 +13,26 @@ from joey.train import load_ckpt, save_ckpt, cosine_lr
 from joey.diffusion import sft_diffusion_loss
 
 
+def _add_pair(X, R, tok, ctx, prompt_text, resp_text):
+    prompt = tok.encode(prompt_text.strip())
+    resp = tok.encode(" " + resp_text.strip())
+    ids = [BOS_ID] + prompt + [EOS_ID] + resp + [EOS_ID]
+    rmask = [False] * (len(prompt) + 2) + [True] * (len(resp) + 1)
+    ids = ids[:ctx] + [PAD_ID] * max(0, ctx - len(ids))
+    rmask = rmask[:ctx] + [False] * max(0, ctx - len(rmask))
+    X.append(ids)
+    R.append(rmask)
+
+
 def build(tok, ctx):
-    ds = load_dataset("tatsu-lab/alpaca", split="train")
+    """Everyday-conversation SFT from DailyDialog: each consecutive utterance
+    pair (u_i -> u_{i+1}) becomes a prompt->response example."""
+    ds = load_dataset("daily_dialog", split="train", trust_remote_code=True)
     X, R = [], []
     for ex in ds:
-        instr = ex["instruction"] + (("\n" + ex["input"]) if ex["input"] else "")
-        prompt = tok.encode(instr)
-        resp = tok.encode(ex["output"])
-        ids = [BOS_ID] + prompt + [EOS_ID] + resp
-        rmask = [False] * (len(prompt) + 2) + [True] * len(resp)
-        ids = ids[:ctx] + [PAD_ID] * max(0, ctx - len(ids))
-        rmask = rmask[:ctx] + [False] * max(0, ctx - len(rmask))
-        X.append(ids)
-        R.append(rmask)
+        turns = [t for t in ex["dialog"] if t.strip()]
+        for i in range(len(turns) - 1):
+            _add_pair(X, R, tok, ctx, turns[i], turns[i + 1])
     return TensorDataset(torch.tensor(X), torch.tensor(R, dtype=torch.bool))
 
 

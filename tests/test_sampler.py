@@ -37,6 +37,32 @@ def test_prompt_prefix_preserved():
     assert out[0, :3].tolist() == [5, 6, 7]
 
 
+def test_rep_penalty_reduces_repetition():
+    # A model biased toward one token should repeat it less with rep_penalty on.
+    torch.manual_seed(0)
+    cfg = ModelConfig(vocab_size=64, d_model=64, n_heads=4, n_layers=2, ctx_len=32)
+    m = JoeyModel(cfg)
+    # Train to strongly prefer token 7 everywhere (induces a loop).
+    target = torch.full((4, 32), 7); target[:, ::3] = 9
+    opt = torch.optim.AdamW(m.parameters(), lr=1e-3)
+    for _ in range(150):
+        opt.zero_grad(); diffusion_loss(m, target, MASK_ID).backward(); opt.step()
+    m.eval()
+    def top_count(rp):
+        out = generate(m, length=32, steps=16, mask_id=MASK_ID, vocab_size=64,
+                       greedy=True, rep_penalty=rp)
+        vals, counts = out[0].unique(return_counts=True)
+        return counts.max().item()
+    assert top_count(1.5) <= top_count(1.0)
+
+
+def test_top_p_keeps_ids_valid():
+    m = JoeyModel(_tiny()).eval()
+    out = generate(m, length=16, steps=8, mask_id=MASK_ID, vocab_size=64, top_p=0.9)
+    assert out.shape == (1, 16)
+    assert (out != MASK_ID).all() and (out >= 0).all() and (out < 64).all()
+
+
 def test_recovers_overfit_sequence():
     # Train to memorize one sequence, then sampling should reproduce it.
     torch.manual_seed(0)

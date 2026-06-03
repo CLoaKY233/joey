@@ -91,7 +91,8 @@ def run_training(max_hours: float = 9.0, max_steps: int = 200_000,
 
     def sampler_cb(model, step):
         out = generate(model, length=cfg.ctx_len, steps=64, mask_id=MASK_ID,
-                       vocab_size=cfg.vocab_size, device="cuda")
+                       vocab_size=cfg.vocab_size, device="cuda",
+                       rep_penalty=1.3, top_p=0.9)
         print(f"[{step}] {tok.decode(out[0].tolist())[:240]}", flush=True)
         vol.commit()
 
