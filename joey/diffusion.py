@@ -22,7 +22,7 @@ def diffusion_loss(model, x, mask_id, force_t=None):
         return torch.zeros((), device=x.device)
     logits = model(x_t, t)
     ce = F.cross_entropy(
-        logits.view(-1, logits.size(-1)), x.view(-1), reduction="none"
+        logits.reshape(-1, logits.size(-1)), x.reshape(-1), reduction="none"
     ).view(B, -1)
     weight = (1.0 / t)[:, None].expand_as(ce)
     masked_loss = (ce * mask.float() * weight).sum() / mask.float().sum()
