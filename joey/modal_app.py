@@ -68,7 +68,7 @@ def build_data(tokenizer_docs: int = 400_000, target_tokens: int = 2_000_000_000
 @app.function(image=image, gpu="A100", volumes={"/vol": vol},
               timeout=60 * 60 * 11)
 def run_training(max_hours: float = 9.0, max_steps: int = 200_000,
-                 batch_size: int = 96, grad_accum: int = 2):
+                 batch_size: int = 512, grad_accum: int = 1, lr: float = 4e-4):
     import glob
     import torch
     from joey.config import ModelConfig, TrainConfig, MASK_ID
@@ -81,7 +81,7 @@ def run_training(max_hours: float = 9.0, max_steps: int = 200_000,
     tok = JoeyTokenizer.load(TOK_PATH)
     cfg = ModelConfig(vocab_size=tok.vocab_size)        # full 170M config
     tcfg = TrainConfig(batch_size=batch_size, max_hours=max_hours,
-                       max_steps=max_steps, warmup_steps=2000,
+                       max_steps=max_steps, warmup_steps=2000, lr=lr,
                        ckpt_every=2000, sample_every=500)
     ds = PackedShardDataset(sorted(glob.glob(f"{SHARD_DIR}/*.npy")), cfg.ctx_len)
     print(f"dataset blocks: {len(ds)} | params: "
