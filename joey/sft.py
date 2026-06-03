@@ -21,7 +21,10 @@ def _add_pair(X, R, tok, ctx, prompt_text, resp_text):
 def build_dailydialog(tok, ctx, max_pairs=None):
     """Each consecutive utterance pair (u_i -> u_{i+1}) is a prompt->response."""
     from datasets import load_dataset
-    ds = load_dataset("daily_dialog", split="train", trust_remote_code=True)
+    # datasets 4.x dropped script-based loaders; DailyDialog ships as a script,
+    # so load HF's auto-generated parquet conversion instead.
+    ds = load_dataset("li2017dailydialog/daily_dialog", split="train",
+                      revision="refs/convert/parquet")
     X, R = [], []
     for ex in ds:
         turns = [t for t in ex["dialog"] if t.strip()]
