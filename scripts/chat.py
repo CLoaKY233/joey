@@ -26,10 +26,13 @@ def main():
         if msg.strip() in ("quit", "exit"):
             break
         prompt = torch.tensor([[BOS_ID] + tok.encode(msg) + [EOS_ID]])
-        out = generate(model, length=cfg.ctx_len, steps=128, mask_id=MASK_ID,
+        total = min(cfg.ctx_len, prompt.shape[1] + 40)   # short reply window
+        out = generate(model, length=total, steps=96, mask_id=MASK_ID,
                        vocab_size=cfg.vocab_size, prompt_ids=prompt, device=dev,
                        rep_penalty=1.3, top_p=0.9)
         resp = out[0, prompt.shape[1]:].tolist()
+        if EOS_ID in resp:                               # stop at end-of-turn
+            resp = resp[:resp.index(EOS_ID)]
         print("joey>", tok.decode(resp))
 
 

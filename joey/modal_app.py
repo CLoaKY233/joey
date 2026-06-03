@@ -129,10 +129,14 @@ def sft_and_eval(sft_steps: int = 3000):
     print("\n===== SAMPLE CONVERSATIONS =====", flush=True)
     for msg in prompts:
         ids = torch.tensor([[BOS_ID] + tok.encode(msg) + [EOS_ID]])
-        out = generate(model, length=cfg.ctx_len, steps=128, mask_id=MASK_ID,
+        total = min(cfg.ctx_len, ids.shape[1] + 40)
+        out = generate(model, length=total, steps=96, mask_id=MASK_ID,
                        vocab_size=cfg.vocab_size, prompt_ids=ids, device="cuda",
                        rep_penalty=1.3, top_p=0.9)
-        reply = tok.decode(out[0, ids.shape[1]:].tolist())
+        resp = out[0, ids.shape[1]:].tolist()
+        if EOS_ID in resp:
+            resp = resp[:resp.index(EOS_ID)]
+        reply = tok.decode(resp)
         print(f"you> {msg}\njoey> {reply}\n", flush=True)
 
 
