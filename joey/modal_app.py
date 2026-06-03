@@ -102,6 +102,40 @@ def run_training(max_hours: float = 9.0, max_steps: int = 200_000,
     print("training complete", flush=True)
 
 
+@app.function(image=image, gpu="A100", volumes={"/vol": vol},
+              timeout=60 * 60 * 2)
+def sft_and_eval(sft_steps: int = 3000):
+    """Finetune the current base checkpoint on DailyDialog and print sample
+    conversations — a preview of conversational behavior + loop-breaking."""
+    import torch
+    from joey.config import MASK_ID, BOS_ID, EOS_ID
+    from joey.tokenizer import JoeyTokenizer
+    from joey.train import load_ckpt, save_ckpt
+    from joey.sft import build_dailydialog, run_sft
+    from joey.sampler import generate
+
+    tok = JoeyTokenizer.load(TOK_PATH)
+    model, cfg, base_step = load_ckpt(CKPT_PATH, use_ema=True)
+    print(f"base checkpoint step {base_step}", flush=True)
+    data = build_dailydialog(tok, cfg.ctx_len)
+    print(f"dailydialog pairs: {len(data)}", flush=True)
+    run_sft(model, data, "cuda", steps=sft_steps, lr=1e-4, batch_size=32)
+    save_ckpt(model, cfg, "/vol/joey_chat.pt", sft_steps)
+    vol.commit()
+
+    model.eval()
+    prompts = ["Hi!", "How are you?", "What is your name?",
+               "Do you like music?", "What did you do today?", "Goodbye!"]
+    print("\n===== SAMPLE CONVERSATIONS =====", flush=True)
+    for msg in prompts:
+        ids = torch.tensor([[BOS_ID] + tok.encode(msg) + [EOS_ID]])
+        out = generate(model, length=cfg.ctx_len, steps=128, mask_id=MASK_ID,
+                       vocab_size=cfg.vocab_size, prompt_ids=ids, device="cuda",
+                       rep_penalty=1.3, top_p=0.9)
+        reply = tok.decode(out[0, ids.shape[1]:].tolist())
+        print(f"you> {msg}\njoey> {reply}\n", flush=True)
+
+
 @app.local_entrypoint()
 def main(max_hours: float = 9.0, target_tokens: int = 2_000_000_000):
     # spawn() runs server-side and returns immediately, so the whole pipeline
