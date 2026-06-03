@@ -27,3 +27,22 @@ def diffusion_loss(model, x, mask_id, force_t=None):
     weight = (1.0 / t)[:, None].expand_as(ce)
     masked_loss = (ce * mask.float() * weight).sum() / mask.float().sum()
     return masked_loss
+
+
+def sft_diffusion_loss(model, x, resp_mask, mask_id, force_t=None):
+    """Like diffusion_loss but only response tokens are eligible for masking,
+    and loss is computed only there (LLaDA-style SFT). resp_mask: [B,T] bool —
+    True on response tokens, False on prompt/padding."""
+    B = x.shape[0]
+    t = force_t if force_t is not None else torch.rand(B, device=x.device)
+    t = t.clamp(min=EPS, max=1.0)
+    probs = t[:, None].expand_as(x) * resp_mask.float()
+    mask = torch.rand_like(x, dtype=torch.float) < probs
+    if mask.sum() == 0:
+        return torch.zeros((), device=x.device)
+    x_t = torch.where(mask, torch.full_like(x, mask_id), x)
+    logits = model(x_t, t)
+    ce = F.cross_entropy(logits.reshape(-1, logits.size(-1)), x.reshape(-1),
+                         reduction="none").view(B, -1)
+    weight = (1.0 / t)[:, None].expand_as(ce)
+    return (ce * mask.float() * weight).sum() / mask.float().sum()

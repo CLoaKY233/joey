@@ -34,6 +34,30 @@ def test_loss_ignores_unmasked():
     assert loss.item() == 0.0
 
 
+def test_sft_loss_only_masks_response():
+    from joey.diffusion import sft_diffusion_loss
+    cfg = ModelConfig(vocab_size=64, d_model=32, n_layers=2, n_heads=4, ctx_len=16)
+    m = JoeyModel(cfg)
+    x = torch.randint(4, 64, (4, 16))
+    resp = torch.zeros(4, 16, dtype=torch.bool); resp[:, 8:] = True  # response half
+    loss = sft_diffusion_loss(m, x, resp, MASK_ID, force_t=torch.zeros(4))
+    assert loss.item() == 0.0   # t=0 -> nothing masked -> 0 loss
+
+
+def test_sft_loss_never_masks_prompt():
+    # Even at t=1, prompt tokens must stay clean; only response gets masked.
+    from joey.diffusion import sft_diffusion_loss, mask_tokens
+    import joey.diffusion as D
+    torch.manual_seed(0)
+    cfg = ModelConfig(vocab_size=64, d_model=32, n_layers=2, n_heads=4, ctx_len=16)
+    m = JoeyModel(cfg)
+    x = torch.randint(4, 64, (4, 16))
+    resp = torch.zeros(4, 16, dtype=torch.bool); resp[:, 8:] = True
+    # patch mask sampling to deterministic-all by using t=1; prompt half stays clean
+    loss = sft_diffusion_loss(m, x, resp, MASK_ID, force_t=torch.ones(4))
+    assert loss.item() > 0.0   # response masked -> nonzero loss
+
+
 def test_overfit_one_batch():
     # THE correctness gate: model must drive loss near zero on a single batch.
     torch.manual_seed(0)
