@@ -4,4 +4,10 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "datasets>=4.8.5",
+    "numpy>=2.4.6",
+    "pytest>=9.0.3",
+    "tokenizers>=0.23.1",
+    "torch>=2.12.0",
+]
