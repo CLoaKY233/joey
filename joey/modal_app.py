@@ -27,7 +27,8 @@ CKPT_PATH = "/vol/joey_base.pt"
 @app.function(image=image, volumes={"/vol": vol}, cpu=8.0, memory=32768,
               timeout=60 * 60 * 6)
 def build_data(tokenizer_docs: int = 400_000, target_tokens: int = 2_000_000_000,
-               vocab_size: int = 16384, ctx_len: int = 256):
+               vocab_size: int = 16384, ctx_len: int = 256,
+               then_train: bool = True, max_hours: float = 9.0):
     import os
     import glob
     from datasets import load_dataset
@@ -57,6 +58,11 @@ def build_data(tokenizer_docs: int = 400_000, target_tokens: int = 2_000_000_000
                                   on_commit=lambda _p: vol.commit())
         vol.commit()
     print("data ready", flush=True)
+
+    # Chain training server-side so it survives the local caller disconnecting.
+    if then_train:
+        print("spawning run_training...", flush=True)
+        run_training.spawn(max_hours=max_hours)
 
 
 @app.function(image=image, gpu="A100", volumes={"/vol": vol},
@@ -95,5 +101,10 @@ def run_training(max_hours: float = 9.0, max_steps: int = 200_000,
 
 @app.local_entrypoint()
 def main(max_hours: float = 9.0, target_tokens: int = 2_000_000_000):
-    build_data.remote(target_tokens=target_tokens)
-    run_training.remote(max_hours=max_hours)
+    # spawn() runs server-side and returns immediately, so the whole pipeline
+    # (build_data -> run_training) survives the local process disconnecting.
+    call = build_data.spawn(target_tokens=target_tokens, then_train=True,
+                            max_hours=max_hours)
+    print(f"spawned build_data: {call.object_id}")
+    print("pipeline running server-side; safe to disconnect. Watch with:")
+    print("  modal app logs joey-diffusion")
