@@ -68,7 +68,9 @@ def build_data(tokenizer_docs: int = 400_000, target_tokens: int = 2_000_000_000
 @app.function(image=image, gpu="A100", volumes={"/vol": vol},
               timeout=60 * 60 * 11)
 def run_training(max_hours: float = 9.0, max_steps: int = 200_000,
-                 batch_size: int = 512, grad_accum: int = 1, lr: float = 4e-4):
+                 batch_size: int = 256, grad_accum: int = 2, lr: float = 4e-4):
+    import os
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     import glob
     import torch
     from joey.config import ModelConfig, TrainConfig, MASK_ID
