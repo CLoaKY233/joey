@@ -33,6 +33,9 @@ class JoeyTokenizer:
     def encode(self, text: str):
         return self._tk.encode(text).ids
 
+    def encode_batch(self, texts):
+        return [e.ids for e in self._tk.encode_batch(texts)]
+
     def decode(self, ids):
         return self._tk.decode(list(ids))
 

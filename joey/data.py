@@ -28,25 +28,45 @@ class PackedShardDataset(Dataset):
 
 
 def build_shards_from_fineweb(tokenizer, out_dir, block_len, target_tokens,
-                              tokens_per_shard=50_000_000):
-    """Stream FineWeb-Edu, tokenize, write packed .npy shards. Used in real runs."""
+                              tokens_per_shard=50_000_000, batch_docs=1000,
+                              on_commit=None):
+    """Stream FineWeb-Edu, tokenize (batched), write packed .npy shards.
+    on_commit(shard_path) is called after each shard so callers can persist a
+    Modal volume mid-build."""
     import os
     from datasets import load_dataset
     os.makedirs(out_dir, exist_ok=True)
     buf, written, shard_i = [], 0, 0
+    texts = []
     ds = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT",
                       split="train", streaming=True)
+
+    def flush_texts():
+        nonlocal buf
+        for ids in tokenizer.encode_batch(texts):
+            buf.extend(ids)
+            buf.append(tokenizer.eos_id)
+        texts.clear()
+
     for ex in ds:
-        buf.extend(tokenizer.encode(ex["text"]))
-        buf.append(tokenizer.eos_id)
+        texts.append(ex["text"])
+        if len(texts) >= batch_docs:
+            flush_texts()
         if len(buf) >= tokens_per_shard:
+            path = os.path.join(out_dir, f"shard{shard_i}.npy")
             blocks = pack_tokens(buf, block_len)
-            np.save(os.path.join(out_dir, f"shard{shard_i}.npy"), blocks)
+            np.save(path, blocks)
             written += blocks.size
             shard_i += 1
             buf = []
+            print(f"shard {shard_i} written, ~{written/1e6:.0f}M tokens", flush=True)
+            if on_commit:
+                on_commit(path)
             if written >= target_tokens:
-                break
+                return
+    flush_texts()
     if buf:
-        np.save(os.path.join(out_dir, f"shard{shard_i}.npy"),
-                pack_tokens(buf, block_len))
+        path = os.path.join(out_dir, f"shard{shard_i}.npy")
+        np.save(path, pack_tokens(buf, block_len))
+        if on_commit:
+            on_commit(path)
