@@ -140,6 +140,24 @@ def sft_and_eval(sft_steps: int = 3000):
         print(f"you> {msg}\njoey> {reply}\n", flush=True)
 
 
+@app.function(image=image, volumes={"/vol": vol}, timeout=600)
+def check_ckpt():
+    """Load the volume checkpoints in-cloud to confirm they are intact
+    (isolates volume corruption from download corruption)."""
+    import hashlib
+    import os
+    from joey.train import load_ckpt
+    for f in ["/vol/joey_base.pt", "/vol/joey_chat.pt"]:
+        size = os.path.getsize(f)
+        with open(f, "rb") as fh:
+            md5 = hashlib.md5(fh.read()).hexdigest()
+        try:
+            _, _, step = load_ckpt(f, use_ema=False)
+            print(f"{f} OK step={step} size={size} md5={md5}", flush=True)
+        except Exception as e:
+            print(f"{f} CORRUPT size={size}: {str(e)[:80]}", flush=True)
+
+
 @app.local_entrypoint()
 def main(max_hours: float = 9.0, target_tokens: int = 2_000_000_000):
     # spawn() runs server-side and returns immediately, so the whole pipeline
