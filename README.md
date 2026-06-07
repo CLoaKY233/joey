@@ -1,5 +1,8 @@
 # Joey 🐤 — a diffusion language model, from scratch
 
+[![Weights on Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-yellow)](https://huggingface.co/cloaky/joey)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 > A small **masked-diffusion LLM** built from the ground up in PyTorch — custom tokenizer,
 > bidirectional Transformer, the diffusion noising/denoising objective, and an iterative-unmasking
 > sampler. No HuggingFace `Trainer`, no pretrained weights — every component is hand-written.
@@ -108,9 +111,15 @@ Requires [`uv`](https://github.com/astral-sh/uv).
 uv sync
 uv run pytest          # run the test suite
 
-# chat with a trained checkpoint (expects artifacts/joey_chat.pt + artifacts/tok.json)
+# get the trained weights from the Hugging Face Hub
+uv run hf download cloaky/joey joey_chat.pt tok.json --local-dir artifacts
+
+# chat with the model
 uv run python scripts/chat.py
 ```
+
+Pretrained weights (`joey_chat.pt`, `joey_base.pt`, `tok.json`) live on the
+[Hugging Face Hub](https://huggingface.co/cloaky/joey).
 
 Training is orchestrated on [Modal](https://modal.com) (`joey/modal_app.py`); a local sanity run is
 in `scripts/sanity_t4.py`.
