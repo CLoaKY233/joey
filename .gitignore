@@ -5,3 +5,7 @@ data/
 checkpoints/
 *.pt
 artifacts/
+.claude/
+CLAUDE.md
+.cursor/
+*.log
